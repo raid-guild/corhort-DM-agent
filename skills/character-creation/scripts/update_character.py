@@ -61,8 +61,10 @@ def recompute(draft: dict) -> None:
     concept = draft.get("concept") or "unfinished concept"
     drive = draft.get("drive") or "an unresolved motivation"
     edge = draft.get("edge") or "no notable edge yet"
+    if all(draft.get(field) for field in ["name", "concept", "role", "drive", "fear", "edge", "flaw"]) and draft.get("status") == "draft":
+        draft["status"] = "ready"
     draft["derived"] = {
-        "one_line_pitch": f"{name} is a {role} with {concept.lower().rstrip('.')}.",
+        "one_line_pitch": f"{name} is a {role}: {concept.rstrip('.')}.",
         "campaign_hook": drive,
         "notable_edge": edge,
     }
