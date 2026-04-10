@@ -4,5 +4,5 @@ __pycache__/
 *.pyd
 .DS_Store
 
-state/runtime/*
+state/
 !state/runtime/.gitkeep
