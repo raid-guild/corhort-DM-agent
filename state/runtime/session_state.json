@@ -1,0 +1,33 @@
+{
+  "intent": "create_character",
+  "mode": "beginner",
+  "currentStep": "start",
+  "completedSteps": [],
+  "pendingQuestion": {
+    "field": "concept",
+    "question": "Do you already know the kind of person you want to play, or do you want a few suggestions?"
+  },
+  "characterDraft": {
+    "character_id": "CHAR-001",
+    "status": "draft",
+    "name": "",
+    "concept": "",
+    "role": "",
+    "tone_tags": [],
+    "core_traits": [],
+    "drive": "",
+    "fear": "",
+    "edge": "",
+    "flaw": "",
+    "relationships": [],
+    "starter_gear": [],
+    "notes": "",
+    "derived": {
+      "one_line_pitch": "",
+      "campaign_hook": "",
+      "notable_edge": ""
+    }
+  },
+  "validationErrors": [],
+  "assumptions": []
+}
