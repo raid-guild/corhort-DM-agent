@@ -56,5 +56,28 @@
     }
   ],
   "monsters": [],
-  "prior_state_refs": ["LOOP-001", "LOC-001"]
+  "prior_state_refs": ["LOOP-001", "LOC-001"],
+  "campaign_import": {
+    "summary": {
+      "resolved": "The party secures passage, but the crossing exposes a new pressure point."
+    },
+    "resolved_loops": {
+      "resolved": ["LOOP-001 | Get past the ferryman guarding passage across the river."]
+    },
+    "new_loops": {
+      "resolved": ["LOOP-002 | Decide whether to trust the ferryman's warning | pressure: medium | next: verify the hidden price of the crossing"]
+    },
+    "world_changes": {
+      "resolved": ["The ferryman admits the river is active tonight and someone has been paying to slow travelers down."]
+    },
+    "rewards": {
+      "resolved": ["Safe passage and a concrete warning about the river."]
+    },
+    "consequences": {
+      "resolved": ["The crossing is now possible, but the party has been noticed."]
+    },
+    "suggested_follow_up": {
+      "resolved": ["Press the ferryman's warning before the paying faction gets ahead of it."]
+    }
+  }
 }

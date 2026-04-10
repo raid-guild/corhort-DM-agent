@@ -83,6 +83,30 @@ def bullet_lines(items: list[str]) -> str:
     return "\n".join(f"- {item}" for item in items)
 
 
+def packet_items(spec: object, status: str) -> list[str]:
+    if isinstance(spec, str):
+        return [spec]
+    if isinstance(spec, list):
+        return [str(item) for item in spec]
+    if isinstance(spec, dict):
+        value = spec.get(status, spec.get("default"))
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list):
+            return [str(item) for item in value]
+    return []
+
+
+def packet_text(spec: object, status: str, fallback: str) -> str:
+    if isinstance(spec, str):
+        return spec
+    if isinstance(spec, dict):
+        value = spec.get(status, spec.get("default"))
+        if isinstance(value, str):
+            return value
+    return fallback
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Resolve a narrative encounter beat.")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
@@ -93,6 +117,7 @@ def main() -> int:
     scene_state = load_json(root / "state/encounters/scene_state.json")
     normalized = load_json(root / "state/encounters/normalized_actions.json")
     optional_rolls = load_json(root / "state/inputs/optional_rolls.json").get("rolls", {})
+    campaign_import_spec = request.get("campaign_import", {})
 
     resolutions = []
     for index, action in enumerate(normalized.get("actions", []), start=1):
@@ -154,8 +179,23 @@ def main() -> int:
         gm_notes.append("Use the next beat to sharpen stakes or expose a new angle.")
 
     summary = f"{request.get('encounter_type', 'narrative').capitalize()} encounter resolved as {status} across {len(resolutions)} action(s)."
+    summary = packet_text(campaign_import_spec.get("summary"), status, summary)
+    resolved_loops = packet_items(campaign_import_spec.get("resolved_loops"), status)
+    new_loops = packet_items(campaign_import_spec.get("new_loops"), status)
+    world_change_lines = packet_items(campaign_import_spec.get("world_changes"), status) or (
+        environment_changes or ["Encounter pressure changed the scene state."]
+    )
+    reward_lines = packet_items(campaign_import_spec.get("rewards"), status) or (
+        added_opportunities or ["No clean reward. The value is narrative position."]
+    )
+    consequence_lines = packet_items(campaign_import_spec.get("consequences"), status) or (
+        added_hazards or ["Pressure remains active and unresolved."]
+    )
+    follow_up_lines = packet_items(campaign_import_spec.get("suggested_follow_up"), status) or (
+        hooks[:3] or ["Ask the players what they do next."]
+    )
     consequences = {
-        "narrative_update": summary,
+        "narrative_update": packet_text(campaign_import_spec.get("narrative_update"), status, summary),
         "state_changes": {"players": [], "npcs": [], "monsters": []},
         "scene_changes": {
             "added_hazards": added_hazards,
@@ -175,8 +215,16 @@ def main() -> int:
         "updated_scene_state": scene_state,
         "action_resolutions": resolutions,
         "consequences": consequences,
+        "campaign_import": {
+            "resolved_loops": resolved_loops,
+            "new_loops": new_loops,
+            "world_changes": world_change_lines,
+            "rewards": reward_lines,
+            "consequences": consequence_lines,
+            "suggested_follow_up": follow_up_lines,
+        },
         "gm_notes": gm_notes,
-        "suggested_next_prompts": hooks[:3],
+        "suggested_next_prompts": follow_up_lines[:3],
     }
     write_json(root / "state/outputs/encounter_result.json", result)
     write_json(root / "state/encounters/scene_state.json", scene_state)
@@ -189,12 +237,12 @@ def main() -> int:
         timestamp=timestamp,
         outcome=status,
         summary=summary,
-        resolved_loops="",
-        new_loops=bullet_lines(hooks[:1]),
-        world_changes=bullet_lines(environment_changes or ["Encounter pressure changed the scene state."]),
-        rewards=bullet_lines(added_opportunities or ["No clean reward. The value is narrative position."]),
-        consequences=bullet_lines(added_hazards or ["Pressure remains active and unresolved."]),
-        suggested_follow_up=bullet_lines(hooks[:3] or ["Ask the players what they do next."]),
+        resolved_loops=bullet_lines(resolved_loops),
+        new_loops=bullet_lines(new_loops),
+        world_changes=bullet_lines(world_change_lines),
+        rewards=bullet_lines(reward_lines),
+        consequences=bullet_lines(consequence_lines),
+        suggested_follow_up=bullet_lines(follow_up_lines),
     )
     (root / "state/outputs/encounter_results.md").write_text(markdown if markdown.endswith("\n") else markdown + "\n")
 

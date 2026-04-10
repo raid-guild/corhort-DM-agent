@@ -53,23 +53,45 @@ def append_after_heading(text: str, heading: str, bullet: str) -> str:
     return f"{text[:insert_at]}\n{bullet}{text[insert_at:]}"
 
 
+def replace_metadata_line(text: str, label: str, value: str) -> str:
+    pattern = rf"(^- {re.escape(label)}: ).+$"
+    if re.search(pattern, text, flags=re.MULTILINE):
+        return re.sub(pattern, rf"\g<1>{value}", text, flags=re.MULTILINE)
+    suffix = "" if text.endswith("\n") else "\n"
+    return f"{text}{suffix}- {label}: {value}\n"
+
+
+def remove_loop_entry(text: str, loop_id: str) -> str:
+    pattern = re.compile(rf"^- \[(?:open|resolved)\] {re.escape(loop_id)} \| [^\n]+$\n?", re.MULTILINE)
+    return pattern.sub("", text)
+
+
+def extract_loop_summary(text: str, loop_id: str) -> str | None:
+    match = re.search(rf"^- \[(?:open|resolved)\] {re.escape(loop_id)} \| ([^|\n]+)", text, flags=re.MULTILINE)
+    return match.group(1).strip() if match else None
+
+
 def mark_resolved(open_loops_text: str, loop_id: str, timestamp: str) -> str:
-    pattern = re.compile(rf"^- \[open\] {re.escape(loop_id)} \| ([^\n]+)$", re.MULTILINE)
-    open_loops_text = pattern.sub(
-        lambda m: f"- [resolved] {loop_id} | {m.group(1).split('|')[0].strip()} | resolved: {timestamp}",
+    summary = extract_loop_summary(open_loops_text, loop_id) or "Imported as resolved"
+    open_loops_text = remove_loop_entry(open_loops_text, loop_id)
+    return append_after_heading(
         open_loops_text,
+        "Resolved",
+        f"- [resolved] {loop_id} | {summary} | resolved: {timestamp}",
     )
-    if loop_id not in open_loops_text:
-        open_loops_text = append_after_heading(open_loops_text, "Resolved", f"- [resolved] {loop_id} | Imported as resolved | resolved: {timestamp}")
-    return open_loops_text
 
 
 def add_new_loop(open_loops_text: str, bullet: str) -> str:
     loop_id = bullet[2:].split("|", 1)[0].strip()
-    if loop_id in open_loops_text:
-        return open_loops_text
     line = bullet if bullet.startswith("- [open] ") else bullet.replace("- ", "- [open] ", 1)
+    open_loops_text = remove_loop_entry(open_loops_text, loop_id)
     return append_after_heading(open_loops_text, "Active", line)
+
+
+def ensure_unique_session_id(session_log: str, requested_session_id: str) -> str:
+    if not re.search(rf"^## {re.escape(requested_session_id)}\b", session_log, flags=re.MULTILINE):
+        return requested_session_id
+    return next_numeric_id("SESSION", session_log)
 
 
 def main() -> int:
@@ -80,6 +102,7 @@ def main() -> int:
     results_path = args.root / "state/inputs/encounter_results.md"
     queue_path = args.root / "state/campaign/encounter_queue.md"
     handoff_path = args.root / "state/handoffs/next_encounter.md"
+    overview_path = args.root / "state/campaign/overview.md"
     open_loops_path = args.root / "state/campaign/open_loops.md"
     timeline_path = args.root / "state/campaign/timeline.md"
     world_state_path = args.root / "state/campaign/world_state.md"
@@ -88,7 +111,9 @@ def main() -> int:
     change_log_path = args.root / "state/logs/change_log.md"
 
     results = read(results_path)
+    overview = read(overview_path)
     queue = read(queue_path)
+    previous_handoff = read(handoff_path)
     open_loops_text = read(open_loops_path)
     timeline = read(timeline_path)
     world_state = read(world_state_path)
@@ -97,7 +122,10 @@ def main() -> int:
     change_log = read(change_log_path)
 
     encounter_id = extract_value(results, "Encounter ID", "TP-000")
-    session_id = extract_value(results, "Session ID", next_numeric_id("SESSION", session_log))
+    session_id = ensure_unique_session_id(
+        session_log,
+        extract_value(results, "Session ID", next_numeric_id("SESSION", session_log)),
+    )
     timestamp = extract_value(results, "Timestamp", now_iso())
     outcome = extract_value(results, "Outcome", "unknown")
     summary = extract_value(results, "Summary", "Encounter results imported.")
@@ -123,13 +151,17 @@ def main() -> int:
     arc_id = extract_value(current_arc, "Arc ID", "ARC-001")
     title = follow_up_text[:72].rstrip(".")
     primary_hook = new_loops[0][2:] if new_loops and "LOOP-000" not in new_loops[0] else follow_up_text
+    location = extract_value(previous_handoff, "Location", "LOC-001")
+    involved_characters = extract_value(previous_handoff, "Involved Characters", "party")
+    aftermath_hooks = suggested_follow_up if suggested_follow_up else [f"- {primary_hook}"]
+    aftermath_hook_block = "\n".join(aftermath_hooks)
 
     touchpoint = f"""## {touchpoint_id} - {title}
 - Arc ID: {arc_id}
 - Type: consequence
 - Trigger: The fallout from {encounter_id} creates immediate new motion.
-- Location: LOC-001
-- Involved Characters: party, FACTION-001
+- Location: {location}
+- Involved Characters: {involved_characters}
 - Premise: Consequences from the last encounter force the next scene into view.
 - Narrative Purpose: Convert the encounter outcome into campaign momentum.
 - Stakes: The party must capitalize before the opposition adapts.
@@ -152,8 +184,8 @@ def main() -> int:
 
 - Title: {title}
 - Trigger: The fallout from {encounter_id} creates immediate new motion.
-- Location: LOC-001
-- Involved Characters: party, FACTION-001
+- Location: {location}
+- Involved Characters: {involved_characters}
 
 ## Run This Scene For
 
@@ -179,11 +211,17 @@ def main() -> int:
 
 ## Aftermath Hooks
 
-- {primary_hook}
+{aftermath_hook_block}
 """
 
     queue = queue.rstrip() + "\n\n" + touchpoint + "\n"
     timeline = timeline.rstrip() + f"\n- {timestamp} | {encounter_id} | {summary}\n"
+    overview = replace_metadata_line(overview, "Updated", timestamp)
+    open_loops_text = replace_metadata_line(open_loops_text, "Updated", timestamp)
+    timeline = replace_metadata_line(timeline, "Updated", timestamp)
+    world_state = replace_metadata_line(world_state, "Updated", timestamp)
+    current_arc = replace_metadata_line(current_arc, "Updated", timestamp)
+    queue = replace_metadata_line(queue, "Updated", timestamp)
     current_arc = append_after_heading(current_arc, "Recent Developments", f"- {timestamp}: Imported {encounter_id} with outcome {outcome}.")
     if world_changes:
         for item in world_changes:
@@ -205,6 +243,7 @@ def main() -> int:
     if consequences:
         session_entry.append(f"- Consequences: {'; '.join(item[2:] for item in consequences)}")
     session_log = session_log.rstrip() + "\n\n" + "\n".join(session_entry) + "\n"
+    session_log = replace_metadata_line(session_log, "Updated", timestamp)
 
     change_log = change_log.rstrip() + (
         f"\n\n## {timestamp}\n\n"
@@ -213,6 +252,7 @@ def main() -> int:
         f"- Added follow-up touchpoint {touchpoint_id} and refreshed next encounter handoff.\n"
     )
 
+    write(overview_path, overview)
     write(open_loops_path, open_loops_text)
     write(queue_path, queue)
     write(handoff_path, handoff)

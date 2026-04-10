@@ -39,9 +39,34 @@ Recommended shape:
   ],
   "npcs": [],
   "monsters": [],
-  "prior_state_refs": []
+  "prior_state_refs": [],
+  "campaign_import": {
+    "summary": {
+      "resolved": "Optional status-specific summary override for the markdown export."
+    },
+    "resolved_loops": {
+      "resolved": ["LOOP-001 | Optional loop to mark resolved when this encounter lands."]
+    },
+    "new_loops": {
+      "resolved": ["LOOP-002 | Optional loop to open from this scene | pressure: medium | next: follow the new lead"]
+    },
+    "world_changes": {
+      "resolved": ["Optional world-state bullet for campaign import."]
+    },
+    "rewards": {
+      "resolved": ["Optional campaign reward bullet."]
+    },
+    "consequences": {
+      "resolved": ["Optional campaign consequence bullet."]
+    },
+    "suggested_follow_up": {
+      "resolved": ["Optional follow-up bullet for the campaign manager."]
+    }
+  }
 }
 ```
+
+`campaign_import` is optional. When present, `resolve_encounter.py` uses it to populate the campaign-manager markdown export instead of falling back to generic placeholder bullets.
 
 ## scene_state
 
